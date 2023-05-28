@@ -1,0 +1,12 @@
+github.com/AlekSi/pointer v1.2.0 h1:glcy/gc4h8HnG2Z3ZECSzZ1IX1x2JxRVuDzaJwQE0+w=
+github.com/AlekSi/pointer v1.2.0/go.mod h1:gZGfd3dpW4vEc/UlyfKKi1roIqcCgwOIvb0tSNSBle0=
+github.com/google/go-cmp v0.5.2/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/gNBxE=
+github.com/google/go-querystring v1.1.0 h1:AnCroh3fv4ZBgVIf1Iwtovgjaw/GiKJo8M8yD/fhyJ8=
+github.com/google/go-querystring v1.1.0/go.mod h1:Kcdr2DB4koayq7X8pmAG4sNG59So17icRSOU623lUBU=
+github.com/jfk9w-go/based v0.0.0-20230528221156-9b3f90560f0b h1:VE6/QKSej66hAlmM7ugWP6ukIPA0V7W1iqbH63HFLIk=
+github.com/jfk9w-go/based v0.0.0-20230528221156-9b3f90560f0b/go.mod h1:meOSGcdsLazNkdn1yT8xvcgCXvYBHpovgmWhT5W9fa4=
+github.com/jfk9w-go/rucaptcha-api v0.0.0-20230528221414-425809b3f9eb h1:i1tg/c5wb0HIZM/WqLD4UpFlF37jToDDdwKX8vUhfnI=
+github.com/jfk9w-go/rucaptcha-api v0.0.0-20230528221414-425809b3f9eb/go.mod h1:TyXleuuaWEntktBqnlY6tHHHa3MQjFXskZbCBYnRpfI=
+github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
+github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
+golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=

@@ -1,0 +1,283 @@
+package lkdr
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"net/http"
+	"time"
+
+	"github.com/AlekSi/pointer"
+	"github.com/jfk9w-go/based"
+	"github.com/pkg/errors"
+)
+
+const (
+	baseURL           = "https://mco.nalog.ru/api"
+	expireTokenOffset = 5 * time.Minute
+)
+
+type NowFunc func() time.Time
+
+type TokenStorage interface {
+	LoadTokens(ctx context.Context, phone string) (*Tokens, error)
+	UpdateTokens(ctx context.Context, phone string, tokens *Tokens) error
+}
+
+type ConfirmationProvider interface {
+	GetConfirmationCode(ctx context.Context, phone string) (string, error)
+}
+
+type CaptchaTokenProvider interface {
+	GetCaptchaToken(ctx context.Context) (string, error)
+}
+
+type ClientBuilder struct {
+	Clock                based.Clock
+	DeviceID             string
+	UserAgent            string
+	Transport            http.RoundTripper
+	CaptchaTokenProvider CaptchaTokenProvider
+	ConfirmationProvider ConfirmationProvider
+	TokenStorage         TokenStorage
+}
+
+func (b ClientBuilder) Build() *Client {
+	transport := b.Transport
+	if transport == nil {
+		transport = http.DefaultTransport
+	}
+
+	return &Client{
+		clock: b.Clock,
+		deviceInfo: deviceInfo{
+			SourceType:     "WEB",
+			SourceDeviceId: b.DeviceID,
+			MetaDetails: metaDetails{
+				UserAgent: b.UserAgent,
+			},
+			AppVersion: "1.0.0",
+		},
+		httpClient: &http.Client{
+			Transport: transport,
+		},
+		captchaTokenProvider: b.CaptchaTokenProvider,
+		confirmationProvider: b.ConfirmationProvider,
+		tokenStorage:         b.TokenStorage,
+		tokenCache:           make(map[string]Tokens),
+	}
+}
+
+type Client struct {
+	clock                based.Clock
+	deviceInfo           deviceInfo
+	httpClient           *http.Client
+	captchaTokenProvider CaptchaTokenProvider
+	confirmationProvider ConfirmationProvider
+	tokenStorage         TokenStorage
+	tokenCache           map[string]Tokens
+	mu                   based.RWMutex
+}
+
+func (c *Client) Receipt(ctx context.Context, phone string, in *ReceiptIn) (*ReceiptOut, error) {
+	var out ReceiptOut
+	if err := c.executeAuthorized(ctx, phone, "/v1/receipt", in, &out); err != nil {
+		return nil, err
+	}
+
+	return &out, nil
+}
+
+func (c *Client) FiscalData(ctx context.Context, phone string, in *FiscalDataIn) (*FiscalDataOut, error) {
+	var out FiscalDataOut
+	if err := c.executeAuthorized(ctx, phone, "/v1/receipt/fiscal_data", in, &out); err != nil {
+		return nil, err
+	}
+
+	return &out, nil
+}
+
+func (c *Client) executeAuthorized(ctx context.Context, phone, path string, in, out any) error {
+	tokens, err := c.getTokens(ctx, phone)
+	if err != nil {
+		return errors.Wrap(err, "load token")
+	}
+
+	now := c.clock.Now()
+	updateToken := true
+	if tokens == nil || tokens.RefreshTokenExpiresIn != nil &&
+		pointer.Get[DateTimeTZ](tokens.RefreshTokenExpiresIn).Before(now.Add(expireTokenOffset)) {
+		tokens, err = c.authorize(ctx, phone)
+		if err != nil {
+			return errors.Wrap(err, "authorize")
+		}
+	} else if tokens.TokenExpireIn.Before(now.Add(expireTokenOffset)) {
+		tokens, err = c.refreshToken(ctx, tokens.RefreshToken)
+		if err != nil {
+			return errors.Wrap(err, "refresh token")
+		}
+	} else {
+		updateToken = false
+	}
+
+	if updateToken {
+		if err := c.updateTokens(ctx, phone, tokens); err != nil {
+			return errors.Wrap(err, "update token")
+		}
+	}
+
+	if err := c.execute(ctx, path, tokens.Token, in, out); err != nil {
+		return errors.Wrap(err, "execute request")
+	}
+
+	return nil
+}
+
+func (c *Client) authorize(ctx context.Context, phone string) (*Tokens, error) {
+	captchaToken, err := c.captchaTokenProvider.GetCaptchaToken(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "get captcha token")
+	}
+
+	startIn := &startIn{
+		DeviceInfo:   c.deviceInfo,
+		Phone:        phone,
+		CaptchaToken: captchaToken,
+	}
+
+	var startOut startOut
+	if err := c.execute(ctx, "/v2/auth/challenge/sms/start", "", startIn, &startOut); err != nil {
+		var clientErr Error
+		if !errors.As(err, &clientErr) || clientErr.Code != SmsVerificationNotExpired {
+			return nil, errors.Wrap(err, "start sms challenge")
+		}
+	}
+
+	code, err := c.confirmationProvider.GetConfirmationCode(ctx, phone)
+	if err != nil {
+		return nil, errors.Wrap(err, "get confirmation code")
+	}
+
+	verifyIn := &verifyIn{
+		DeviceInfo:     c.deviceInfo,
+		Phone:          phone,
+		ChallengeToken: startOut.ChallengeToken,
+		Code:           code,
+	}
+
+	var tokens Tokens
+	if err := c.execute(ctx, "/v1/auth/challenge/sms/verify", "", verifyIn, &tokens); err != nil {
+		return nil, errors.Wrap(err, "verify code")
+	}
+
+	return &tokens, nil
+}
+
+func (c *Client) refreshToken(ctx context.Context, refreshToken string) (*Tokens, error) {
+	in := &tokenIn{
+		DeviceInfo:   c.deviceInfo,
+		RefreshToken: refreshToken,
+	}
+
+	var out Tokens
+	if err := c.execute(ctx, "/v1/auth/token", "", in, &out); err != nil {
+		return nil, err
+	}
+
+	return &out, nil
+}
+
+func (c *Client) updateTokens(ctx context.Context, phone string, tokens *Tokens) error {
+	ctx, cancel := c.mu.Lock(ctx)
+	defer cancel()
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+
+	if err := c.tokenStorage.UpdateTokens(ctx, phone, tokens); err != nil {
+		return errors.Wrap(err, "update tokens in storage")
+	}
+
+	c.tokenCache[phone] = *tokens
+	return nil
+}
+
+func (c *Client) getTokens(ctx context.Context, phone string) (*Tokens, error) {
+	if tokens, err := c.getTokensFromCache(ctx, phone); tokens != nil || err != nil {
+		return tokens, err
+	}
+
+	ctx, cancel := c.mu.Lock(ctx)
+	defer cancel()
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+
+	if tokens, ok := c.tokenCache[phone]; ok {
+		return &tokens, nil
+	}
+
+	tokens, err := c.tokenStorage.LoadTokens(ctx, phone)
+	if err == nil && tokens != nil {
+		c.tokenCache[phone] = *tokens
+	}
+
+	return tokens, errors.Wrap(err, "get tokens from storage")
+}
+
+func (c *Client) getTokensFromCache(ctx context.Context, phone string) (*Tokens, error) {
+	ctx, cancel := c.mu.RLock(ctx)
+	defer cancel()
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+
+	if tokens, ok := c.tokenCache[phone]; ok {
+		return &tokens, nil
+	}
+
+	return nil, nil
+}
+
+func (c *Client) execute(ctx context.Context, path, token string, in, out any) error {
+	reqBody, err := json.Marshal(in)
+	if err != nil {
+		return errors.Wrap(err, "marshal json body")
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+path, bytes.NewReader(reqBody))
+	if err != nil {
+		return errors.Wrap(err, "create request")
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json;charset=UTF-8")
+	if token != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+token)
+	}
+
+	httpResp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return errors.Wrap(err, "execute request")
+	}
+
+	if httpResp.Body == nil {
+		return errors.New(httpResp.Status)
+	}
+
+	defer httpResp.Body.Close()
+
+	if httpResp.StatusCode != http.StatusOK {
+		var clientErr Error
+		if err := json.NewDecoder(httpResp.Body).Decode(&clientErr); err == nil {
+			return clientErr
+		}
+
+		return errors.New(httpResp.Status)
+	}
+
+	if err := json.NewDecoder(httpResp.Body).Decode(out); err != nil {
+		return errors.Wrap(err, "decode response body")
+	}
+
+	return nil
+}
