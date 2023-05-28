@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/jfk9w-go/based"
-
 	"github.com/jfk9w-go/lkdr-api"
 	"github.com/jfk9w-go/rucaptcha-api"
 	"github.com/pkg/errors"
