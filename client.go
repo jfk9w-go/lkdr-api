@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/AlekSi/pointer"
+	"github.com/go-playground/validator"
 	"github.com/jfk9w-go/based"
 	"github.com/pkg/errors"
 )
@@ -15,6 +16,8 @@ import (
 const (
 	baseURL           = "https://mco.nalog.ru/api"
 	expireTokenOffset = 5 * time.Minute
+	captchaSiteKey    = "hfU4TD7fJUI7XcP5qRphKWgnIR5t9gXAxTRqdQJk"
+	captchaPageURL    = "https://lkdr.nalog.ru/login"
 )
 
 type NowFunc func() time.Time
@@ -29,23 +32,31 @@ type ConfirmationProvider interface {
 }
 
 type CaptchaTokenProvider interface {
-	GetCaptchaToken(ctx context.Context) (string, error)
+	GetCaptchaToken(ctx context.Context, userAgent, siteKey, pageURL string) (string, error)
+}
+
+var validate = based.Lazy[*validator.Validate]{
+	Fn: func(ctx context.Context) (*validator.Validate, error) {
+		return validator.New(), nil
+	},
 }
 
 type ClientBuilder struct {
-	Clock                based.Clock
-	DeviceID             string
-	UserAgent            string
-	Transport            http.RoundTripper
+	Clock                based.Clock          `validate:"required"`
+	DeviceID             string               `validate:"required"`
+	UserAgent            string               `validate:"required"`
+	ConfirmationProvider ConfirmationProvider `validate:"required"`
+	TokenStorage         TokenStorage         `validate:"required"`
+
 	CaptchaTokenProvider CaptchaTokenProvider
-	ConfirmationProvider ConfirmationProvider
-	TokenStorage         TokenStorage
+	Transport            http.RoundTripper
 }
 
-func (b ClientBuilder) Build() *Client {
-	transport := b.Transport
-	if transport == nil {
-		transport = http.DefaultTransport
+func (b ClientBuilder) Build(ctx context.Context) (*Client, error) {
+	if validate, err := validate.Get(ctx); err != nil {
+		return nil, err
+	} else if err := validate.Struct(b); err != nil {
+		return nil, err
 	}
 
 	return &Client{
@@ -59,13 +70,13 @@ func (b ClientBuilder) Build() *Client {
 			AppVersion: "1.0.0",
 		},
 		httpClient: &http.Client{
-			Transport: transport,
+			Transport: b.Transport,
 		},
 		captchaTokenProvider: b.CaptchaTokenProvider,
 		confirmationProvider: b.ConfirmationProvider,
 		tokenStorage:         b.TokenStorage,
 		tokenCache:           make(map[string]Tokens),
-	}
+	}, nil
 }
 
 type Client struct {
@@ -134,7 +145,11 @@ func (c *Client) executeAuthorized(ctx context.Context, phone, path string, in, 
 }
 
 func (c *Client) authorize(ctx context.Context, phone string) (*Tokens, error) {
-	captchaToken, err := c.captchaTokenProvider.GetCaptchaToken(ctx)
+	if c.captchaTokenProvider == nil {
+		return nil, errors.New("captcha token provider not set")
+	}
+
+	captchaToken, err := c.captchaTokenProvider.GetCaptchaToken(ctx, c.deviceInfo.MetaDetails.UserAgent, captchaSiteKey, captchaPageURL)
 	if err != nil {
 		return nil, errors.Wrap(err, "get captcha token")
 	}

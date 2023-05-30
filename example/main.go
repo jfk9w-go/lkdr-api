@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/caarlos0/env"
 	"github.com/jfk9w-go/based"
 	"github.com/jfk9w-go/lkdr-api"
 	"github.com/jfk9w-go/rucaptcha-api"
@@ -91,15 +92,14 @@ func (s jsonTokenStorage) open(flag int) (*os.File, error) {
 }
 
 type rucaptchaTokenProvider struct {
-	client  *rucaptcha.Client
-	siteKey string
-	pageURL string
+	client *rucaptcha.Client
 }
 
-func (p *rucaptchaTokenProvider) GetCaptchaToken(ctx context.Context) (string, error) {
+func (p *rucaptchaTokenProvider) GetCaptchaToken(ctx context.Context, userAgent, siteKey, pageURL string) (string, error) {
 	solved, err := p.client.Solve(ctx, &rucaptcha.YandexSmartCaptchaIn{
-		SiteKey: p.siteKey,
-		PageURL: p.pageURL,
+		UserAgent: userAgent,
+		SiteKey:   siteKey,
+		PageURL:   pageURL,
 	})
 
 	if err != nil {
@@ -123,57 +123,49 @@ func (p stdinConfirmationProvider) GetConfirmationCode(ctx context.Context, phon
 }
 
 func main() {
-	rucaptchaKey := os.Getenv("RUCAPTCHA_KEY")
-	captchaSiteKey := os.Getenv("CAPTCHA_SITE_KEY")
-	captchaPageURL := os.Getenv("CAPTCHA_PAGE_URL")
-	lkdrPhone := os.Getenv("LKDR_PHONE")
-	lkdrTokensFile := os.Getenv("LKDR_TOKENS_FILE")
-	lkdrDeviceID := os.Getenv("LKDR_DEVICE_ID")
-	lkdrUserAgent := os.Getenv("LKDR_USER_AGENT")
+	var config struct {
+		RucaptchaKey string `env:"RUCAPTCHA_KEY,required"`
+		Phone        string `env:"LKDR_PHONE,required"`
+		TokensFile   string `env:"LKDR_TOKENS_FILE,required"`
+		DeviceID     string `env:"LKDR_DEVICE_ID,required"`
+		UserAgent    string `env:"LKDR_USER_AGENT,required"`
+	}
 
-	for _, value := range []string{
-		rucaptchaKey,
-		captchaSiteKey,
-		captchaPageURL,
-		lkdrPhone,
-		lkdrTokensFile,
-		lkdrDeviceID,
-		lkdrUserAgent,
-	} {
-		if value == "" {
-			fmt.Println("RUCAPTCHA_KEY, CAPTCHA_SITE_KEY, CAPTCHA_PAGE_URL, LKDR_TOKENS_FILE, LKDR_TOKENS_FILE & LKDR_PHONE environment variables must not be empty")
-			return
-		}
+	if err := env.Parse(&config); err != nil {
+		panic(err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	clock := based.StandardClock
-	rucaptchaClient, err := rucaptcha.NewClient(clock, &rucaptcha.Config{
-		Key: rucaptchaKey,
-	})
+	rucaptchaClient, err := rucaptcha.ClientBuilder{
+		Config: rucaptcha.Config{
+			Key: config.RucaptchaKey,
+		},
+	}.Build(ctx)
 
 	if err != nil {
 		panic(err)
 	}
 
-	client := lkdr.ClientBuilder{
-		Clock:     clock,
-		DeviceID:  lkdrDeviceID,
-		UserAgent: lkdrUserAgent,
+	client, err := lkdr.ClientBuilder{
+		Clock:     based.StandardClock,
+		DeviceID:  config.DeviceID,
+		UserAgent: config.UserAgent,
 		CaptchaTokenProvider: &rucaptchaTokenProvider{
-			client:  rucaptchaClient,
-			siteKey: captchaSiteKey,
-			pageURL: captchaPageURL,
+			client: rucaptchaClient,
 		},
 		ConfirmationProvider: stdinConfirmationProvider{},
 		TokenStorage: jsonTokenStorage{
-			path: lkdrTokensFile,
+			path: config.TokensFile,
 		},
-	}.Build()
+	}.Build(ctx)
 
-	receipts, err := client.Receipt(ctx, lkdrPhone, &lkdr.ReceiptIn{
+	if err != nil {
+		panic(err)
+	}
+
+	receipts, err := client.Receipt(ctx, config.Phone, &lkdr.ReceiptIn{
 		Limit:   1,
 		Offset:  0,
 		OrderBy: "RECEIVE_DATE:DESC",
@@ -185,7 +177,7 @@ func main() {
 
 	fmt.Printf("Last receipt key: %s\n", receipts.Receipts[0].Key)
 
-	fiscalData, err := client.FiscalData(ctx, lkdrPhone, &lkdr.FiscalDataIn{
+	fiscalData, err := client.FiscalData(ctx, config.Phone, &lkdr.FiscalDataIn{
 		Key: receipts.Receipts[0].Key,
 	})
 

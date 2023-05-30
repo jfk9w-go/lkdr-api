@@ -123,16 +123,16 @@ type metaDetails struct {
 }
 
 type deviceInfo struct {
-	AppVersion     string      `json:"appVersion"`
+	AppVersion     string      `json:"appVersion" validate:"required"`
 	MetaDetails    metaDetails `json:"metaDetails"`
-	SourceDeviceId string      `json:"sourceDeviceId"`
-	SourceType     string      `json:"sourceType"`
+	SourceDeviceId string      `json:"sourceDeviceId" validate:"required"`
+	SourceType     string      `json:"sourceType" validate:"required"`
 }
 
 type startIn struct {
-	DeviceInfo   deviceInfo `json:"deviceInfo"`
-	Phone        string     `json:"phone"`
-	CaptchaToken string     `json:"captchaToken"`
+	DeviceInfo   deviceInfo `json:"deviceInfo" validate:"required"`
+	Phone        string     `json:"phone" validate:"required"`
+	CaptchaToken string     `json:"captchaToken" validate:"required"`
 }
 
 type startOut struct {
@@ -143,14 +143,14 @@ type startOut struct {
 
 type verifyIn struct {
 	DeviceInfo     deviceInfo `json:"deviceInfo"`
-	Phone          string     `json:"phone"`
-	ChallengeToken string     `json:"challengeToken"`
-	Code           string     `json:"code"`
+	Phone          string     `json:"phone" validate:"required"`
+	ChallengeToken string     `json:"challengeToken" validate:"required"`
+	Code           string     `json:"code" validate:"required"`
 }
 
 type tokenIn struct {
 	DeviceInfo   deviceInfo `json:"deviceInfo"`
-	RefreshToken string     `json:"refreshToken"`
+	RefreshToken string     `json:"refreshToken" validate:"required"`
 }
 
 type Tokens struct {
