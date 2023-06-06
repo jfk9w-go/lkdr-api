@@ -20,8 +20,6 @@ const (
 	captchaPageURL    = "https://lkdr.nalog.ru/login"
 )
 
-type NowFunc func() time.Time
-
 type TokenStorage interface {
 	LoadTokens(ctx context.Context, phone string) (*Tokens, error)
 	UpdateTokens(ctx context.Context, phone string, tokens *Tokens) error
@@ -74,8 +72,12 @@ func (b ClientBuilder) Build(ctx context.Context) (*Client, error) {
 		},
 		captchaTokenProvider: b.CaptchaTokenProvider,
 		confirmationProvider: b.ConfirmationProvider,
-		tokenStorage:         b.TokenStorage,
-		tokenCache:           make(map[string]Tokens),
+		tokenCache: based.NewWriteThroughCache[string, *Tokens](
+			based.WriteThroughCacheStorageFunc[string, *Tokens]{
+				LoadFn:   b.TokenStorage.LoadTokens,
+				UpdateFn: b.TokenStorage.UpdateTokens,
+			},
+		),
 	}, nil
 }
 
@@ -85,9 +87,7 @@ type Client struct {
 	httpClient           *http.Client
 	captchaTokenProvider CaptchaTokenProvider
 	confirmationProvider ConfirmationProvider
-	tokenStorage         TokenStorage
-	tokenCache           map[string]Tokens
-	mu                   based.RWMutex
+	tokenCache           *based.WriteThroughCache[string, *Tokens]
 }
 
 func (c *Client) Receipt(ctx context.Context, phone string, in *ReceiptIn) (*ReceiptOut, error) {
@@ -109,7 +109,7 @@ func (c *Client) FiscalData(ctx context.Context, phone string, in *FiscalDataIn)
 }
 
 func (c *Client) executeAuthorized(ctx context.Context, phone, path string, in, out any) error {
-	tokens, err := c.getTokens(ctx, phone)
+	tokens, err := c.tokenCache.Get(ctx, phone)
 	if err != nil {
 		return errors.Wrap(err, "load token")
 	}
@@ -117,12 +117,12 @@ func (c *Client) executeAuthorized(ctx context.Context, phone, path string, in, 
 	now := c.clock.Now()
 	updateToken := true
 	if tokens == nil || tokens.RefreshTokenExpiresIn != nil &&
-		pointer.Get[DateTimeTZ](tokens.RefreshTokenExpiresIn).Before(now.Add(expireTokenOffset)) {
+		pointer.Get[DateTimeTZ](tokens.RefreshTokenExpiresIn).Time().Before(now.Add(expireTokenOffset)) {
 		tokens, err = c.authorize(ctx, phone)
 		if err != nil {
 			return errors.Wrap(err, "authorize")
 		}
-	} else if tokens.TokenExpireIn.Before(now.Add(expireTokenOffset)) {
+	} else if tokens.TokenExpireIn.Time().Before(now.Add(expireTokenOffset)) {
 		tokens, err = c.refreshToken(ctx, tokens.RefreshToken)
 		if err != nil {
 			return errors.Wrap(err, "refresh token")
@@ -132,7 +132,7 @@ func (c *Client) executeAuthorized(ctx context.Context, phone, path string, in, 
 	}
 
 	if updateToken {
-		if err := c.updateTokens(ctx, phone, tokens); err != nil {
+		if err := c.tokenCache.Update(ctx, phone, tokens); err != nil {
 			return errors.Wrap(err, "update token")
 		}
 	}
@@ -200,58 +200,6 @@ func (c *Client) refreshToken(ctx context.Context, refreshToken string) (*Tokens
 	}
 
 	return &out, nil
-}
-
-func (c *Client) updateTokens(ctx context.Context, phone string, tokens *Tokens) error {
-	ctx, cancel := c.mu.Lock(ctx)
-	defer cancel()
-	if ctx.Err() != nil {
-		return ctx.Err()
-	}
-
-	if err := c.tokenStorage.UpdateTokens(ctx, phone, tokens); err != nil {
-		return errors.Wrap(err, "update tokens in storage")
-	}
-
-	c.tokenCache[phone] = *tokens
-	return nil
-}
-
-func (c *Client) getTokens(ctx context.Context, phone string) (*Tokens, error) {
-	if tokens, err := c.getTokensFromCache(ctx, phone); tokens != nil || err != nil {
-		return tokens, err
-	}
-
-	ctx, cancel := c.mu.Lock(ctx)
-	defer cancel()
-	if ctx.Err() != nil {
-		return nil, ctx.Err()
-	}
-
-	if tokens, ok := c.tokenCache[phone]; ok {
-		return &tokens, nil
-	}
-
-	tokens, err := c.tokenStorage.LoadTokens(ctx, phone)
-	if err == nil && tokens != nil {
-		c.tokenCache[phone] = *tokens
-	}
-
-	return tokens, errors.Wrap(err, "get tokens from storage")
-}
-
-func (c *Client) getTokensFromCache(ctx context.Context, phone string) (*Tokens, error) {
-	ctx, cancel := c.mu.RLock(ctx)
-	defer cancel()
-	if ctx.Err() != nil {
-		return nil, ctx.Err()
-	}
-
-	if tokens, ok := c.tokenCache[phone]; ok {
-		return &tokens, nil
-	}
-
-	return nil, nil
 }
 
 func (c *Client) execute(ctx context.Context, path, token string, in, out any) error {

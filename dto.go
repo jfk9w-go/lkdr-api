@@ -16,8 +16,10 @@ var dateTimeLocation = &based.Lazy[*time.Location]{
 	},
 }
 
-type DateTime struct {
-	time.Time
+type DateTime time.Time
+
+func (dt DateTime) Time() time.Time {
+	return time.Time(dt)
 }
 
 func (dt *DateTime) UnmarshalJSON(data []byte) error {
@@ -36,12 +38,14 @@ func (dt *DateTime) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	dt.Time = value
+	*dt = DateTime(value)
 	return nil
 }
 
-type Date struct {
-	time.Time
+type Date time.Time
+
+func (d Date) Time() time.Time {
+	return time.Time(d)
 }
 
 func (d Date) MarshalJSON() ([]byte, error) {
@@ -50,12 +54,14 @@ func (d Date) MarshalJSON() ([]byte, error) {
 		return nil, errors.Wrap(err, "load location")
 	}
 
-	str := d.Time.In(location).Format("2006-01-02")
+	str := time.Time(d).In(location).Format("2006-01-02")
 	return json.Marshal(str)
 }
 
-type DateTimeTZ struct {
-	time.Time
+type DateTimeTZ time.Time
+
+func (dt DateTimeTZ) Time() time.Time {
+	return time.Time(dt)
 }
 
 func (dt *DateTimeTZ) UnmarshalJSON(data []byte) error {
@@ -69,12 +75,14 @@ func (dt *DateTimeTZ) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	dt.Time = value
+	*dt = DateTimeTZ(value)
 	return nil
 }
 
-type DateTimeMilliOffset struct {
-	time.Time
+type DateTimeMilliOffset time.Time
+
+func (dt DateTimeMilliOffset) Time() time.Time {
+	return time.Time(dt)
 }
 
 func (dt *DateTimeMilliOffset) UnmarshalJSON(data []byte) error {
@@ -88,7 +96,7 @@ func (dt *DateTimeMilliOffset) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	dt.Time = value
+	*dt = DateTimeMilliOffset(value)
 	return nil
 }
 

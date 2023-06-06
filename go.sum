@@ -15,6 +15,8 @@ github.com/google/go-querystring v1.1.0 h1:AnCroh3fv4ZBgVIf1Iwtovgjaw/GiKJo8M8yD
 github.com/google/go-querystring v1.1.0/go.mod h1:Kcdr2DB4koayq7X8pmAG4sNG59So17icRSOU623lUBU=
 github.com/jfk9w-go/based v0.0.0-20230528221156-9b3f90560f0b h1:VE6/QKSej66hAlmM7ugWP6ukIPA0V7W1iqbH63HFLIk=
 github.com/jfk9w-go/based v0.0.0-20230528221156-9b3f90560f0b/go.mod h1:meOSGcdsLazNkdn1yT8xvcgCXvYBHpovgmWhT5W9fa4=
+github.com/jfk9w-go/based v0.0.0-20230606063108-5c5ec397f5ac h1:gKxjS73w/tlyG8rUtKWhfWVdBHbCHy9InldDRNPEL3w=
+github.com/jfk9w-go/based v0.0.0-20230606063108-5c5ec397f5ac/go.mod h1:meOSGcdsLazNkdn1yT8xvcgCXvYBHpovgmWhT5W9fa4=
 github.com/jfk9w-go/rucaptcha-api v0.0.0-20230528221414-425809b3f9eb h1:i1tg/c5wb0HIZM/WqLD4UpFlF37jToDDdwKX8vUhfnI=
 github.com/jfk9w-go/rucaptcha-api v0.0.0-20230528221414-425809b3f9eb/go.mod h1:TyXleuuaWEntktBqnlY6tHHHa3MQjFXskZbCBYnRpfI=
 github.com/jfk9w-go/rucaptcha-api v0.0.0-20230530172209-5c61540333f0 h1:IvKq9OIUTzBC2aYlwzOIAuFSSxBDky4xXn4OvyuGQ8Q=
