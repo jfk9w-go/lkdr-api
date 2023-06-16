@@ -64,13 +64,20 @@ func (dt DateTimeTZ) Time() time.Time {
 	return time.Time(dt)
 }
 
+const dateTimeTZLayout = "2006-01-02T15:04:05.999Z"
+
+func (dt DateTimeTZ) MarshalJSON() ([]byte, error) {
+	str := dt.Time().Format(dateTimeTZLayout)
+	return json.Marshal(str)
+}
+
 func (dt *DateTimeTZ) UnmarshalJSON(data []byte) error {
 	var str string
 	if err := json.Unmarshal(data, &str); err != nil {
 		return err
 	}
 
-	value, err := time.Parse("2006-01-02T15:04:05.999Z", str)
+	value, err := time.Parse(dateTimeTZLayout, str)
 	if err != nil {
 		return err
 	}
@@ -137,11 +144,21 @@ type deviceInfo struct {
 	SourceType     string      `json:"sourceType" validate:"required"`
 }
 
+type exchange[R any] interface {
+	auth() bool
+	path() string
+	out() R
+}
+
 type startIn struct {
 	DeviceInfo   deviceInfo `json:"deviceInfo" validate:"required"`
 	Phone        string     `json:"phone" validate:"required"`
 	CaptchaToken string     `json:"captchaToken" validate:"required"`
 }
+
+func (in startIn) auth() bool        { return false }
+func (in startIn) path() string      { return "/v2/auth/challenge/sms/start" }
+func (in startIn) out() (_ startOut) { return }
 
 type startOut struct {
 	ChallengeToken             string              `json:"challengeToken"`
@@ -156,10 +173,18 @@ type verifyIn struct {
 	Code           string     `json:"code" validate:"required"`
 }
 
+func (in verifyIn) auth() bool      { return false }
+func (in verifyIn) path() string    { return "/v1/auth/challenge/sms/verify" }
+func (in verifyIn) out() (_ Tokens) { return }
+
 type tokenIn struct {
 	DeviceInfo   deviceInfo `json:"deviceInfo"`
 	RefreshToken string     `json:"refreshToken" validate:"required"`
 }
+
+func (in tokenIn) auth() bool      { return false }
+func (in tokenIn) path() string    { return "/v1/auth/token" }
+func (in tokenIn) out() (_ Tokens) { return }
 
 type Tokens struct {
 	RefreshToken          string      `json:"refreshToken"`
@@ -177,6 +202,10 @@ type ReceiptIn struct {
 	Offset   int     `json:"offset"`
 	OrderBy  string  `json:"orderBy"`
 }
+
+func (in ReceiptIn) auth() bool          { return true }
+func (in ReceiptIn) path() string        { return "/v1/receipt" }
+func (in ReceiptIn) out() (_ ReceiptOut) { return }
 
 type Brand struct {
 	Description string `json:"description"`
@@ -208,6 +237,10 @@ type ReceiptOut struct {
 type FiscalDataIn struct {
 	Key string `json:"key"`
 }
+
+func (in FiscalDataIn) auth() bool             { return true }
+func (in FiscalDataIn) path() string           { return "/v1/receipt/fiscal_data" }
+func (in FiscalDataIn) out() (_ FiscalDataOut) { return }
 
 type FiscalDataItem struct {
 	Name        string  `json:"name"`

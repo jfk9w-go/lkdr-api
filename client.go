@@ -40,6 +40,7 @@ var validate = based.Lazy[*validator.Validate]{
 }
 
 type ClientBuilder struct {
+	Phone                string               `validate:"required"`
 	Clock                based.Clock          `validate:"required"`
 	DeviceID             string               `validate:"required"`
 	UserAgent            string               `validate:"required"`
@@ -59,6 +60,7 @@ func (b ClientBuilder) Build(ctx context.Context) (*Client, error) {
 
 	return &Client{
 		clock: b.Clock,
+		phone: b.Phone,
 		deviceInfo: deviceInfo{
 			SourceType:     "WEB",
 			SourceDeviceId: b.DeviceID,
@@ -72,79 +74,69 @@ func (b ClientBuilder) Build(ctx context.Context) (*Client, error) {
 		},
 		captchaTokenProvider: b.CaptchaTokenProvider,
 		confirmationProvider: b.ConfirmationProvider,
-		tokenCache: based.NewWriteThroughCache[string, *Tokens](
+		token: based.NewWriteThroughCached[string, *Tokens](
 			based.WriteThroughCacheStorageFunc[string, *Tokens]{
 				LoadFn:   b.TokenStorage.LoadTokens,
 				UpdateFn: b.TokenStorage.UpdateTokens,
 			},
+			b.Phone,
 		),
+		mu: based.Semaphore(b.Clock, 20, time.Minute),
 	}, nil
 }
 
 type Client struct {
 	clock                based.Clock
+	phone                string
 	deviceInfo           deviceInfo
 	httpClient           *http.Client
 	captchaTokenProvider CaptchaTokenProvider
 	confirmationProvider ConfirmationProvider
-	tokenCache           *based.WriteThroughCache[string, *Tokens]
+	token                *based.WriteThroughCached[*Tokens]
+	mu                   based.Locker
 }
 
-func (c *Client) Receipt(ctx context.Context, phone string, in *ReceiptIn) (*ReceiptOut, error) {
-	var out ReceiptOut
-	if err := c.executeAuthorized(ctx, phone, "/v1/receipt", in, &out); err != nil {
-		return nil, err
-	}
-
-	return &out, nil
+func (c *Client) Receipt(ctx context.Context, in *ReceiptIn) (*ReceiptOut, error) {
+	return execute[ReceiptOut](ctx, c, in)
 }
 
-func (c *Client) FiscalData(ctx context.Context, phone string, in *FiscalDataIn) (*FiscalDataOut, error) {
-	var out FiscalDataOut
-	if err := c.executeAuthorized(ctx, phone, "/v1/receipt/fiscal_data", in, &out); err != nil {
-		return nil, err
-	}
-
-	return &out, nil
+func (c *Client) FiscalData(ctx context.Context, in *FiscalDataIn) (*FiscalDataOut, error) {
+	return execute[FiscalDataOut](ctx, c, in)
 }
 
-func (c *Client) executeAuthorized(ctx context.Context, phone, path string, in, out any) error {
-	tokens, err := c.tokenCache.Get(ctx, phone)
+func (c *Client) ensureToken(ctx context.Context) (string, error) {
+	tokens, err := c.token.Get(ctx)
 	if err != nil {
-		return errors.Wrap(err, "load token")
+		return "", errors.Wrap(err, "load token")
 	}
 
 	now := c.clock.Now()
 	updateToken := true
 	if tokens == nil || tokens.RefreshTokenExpiresIn != nil &&
 		pointer.Get[DateTimeTZ](tokens.RefreshTokenExpiresIn).Time().Before(now.Add(expireTokenOffset)) {
-		tokens, err = c.authorize(ctx, phone)
+		tokens, err = c.authorize(ctx)
 		if err != nil {
-			return errors.Wrap(err, "authorize")
+			return "", errors.Wrap(err, "authorize")
 		}
 	} else if tokens.TokenExpireIn.Time().Before(now.Add(expireTokenOffset)) {
 		tokens, err = c.refreshToken(ctx, tokens.RefreshToken)
 		if err != nil {
-			return errors.Wrap(err, "refresh token")
+			return "", errors.Wrap(err, "refresh token")
 		}
 	} else {
 		updateToken = false
 	}
 
 	if updateToken {
-		if err := c.tokenCache.Update(ctx, phone, tokens); err != nil {
-			return errors.Wrap(err, "update token")
+		if err := c.token.Update(ctx, tokens); err != nil {
+			return "", errors.Wrap(err, "update token")
 		}
 	}
 
-	if err := c.execute(ctx, path, tokens.Token, in, out); err != nil {
-		return errors.Wrap(err, "execute request")
-	}
-
-	return nil
+	return tokens.Token, nil
 }
 
-func (c *Client) authorize(ctx context.Context, phone string) (*Tokens, error) {
+func (c *Client) authorize(ctx context.Context) (*Tokens, error) {
 	if c.captchaTokenProvider == nil {
 		return nil, errors.New("captcha token provider not set")
 	}
@@ -156,36 +148,36 @@ func (c *Client) authorize(ctx context.Context, phone string) (*Tokens, error) {
 
 	startIn := &startIn{
 		DeviceInfo:   c.deviceInfo,
-		Phone:        phone,
+		Phone:        c.phone,
 		CaptchaToken: captchaToken,
 	}
 
-	var startOut startOut
-	if err := c.execute(ctx, "/v2/auth/challenge/sms/start", "", startIn, &startOut); err != nil {
+	startOut, err := execute[startOut](ctx, c, startIn)
+	if err != nil {
 		var clientErr Error
 		if !errors.As(err, &clientErr) || clientErr.Code != SmsVerificationNotExpired {
 			return nil, errors.Wrap(err, "start sms challenge")
 		}
 	}
 
-	code, err := c.confirmationProvider.GetConfirmationCode(ctx, phone)
+	code, err := c.confirmationProvider.GetConfirmationCode(ctx, c.phone)
 	if err != nil {
 		return nil, errors.Wrap(err, "get confirmation code")
 	}
 
 	verifyIn := &verifyIn{
 		DeviceInfo:     c.deviceInfo,
-		Phone:          phone,
+		Phone:          c.phone,
 		ChallengeToken: startOut.ChallengeToken,
 		Code:           code,
 	}
 
-	var tokens Tokens
-	if err := c.execute(ctx, "/v1/auth/challenge/sms/verify", "", verifyIn, &tokens); err != nil {
+	tokens, err := execute[Tokens](ctx, c, verifyIn)
+	if err != nil {
 		return nil, errors.Wrap(err, "verify code")
 	}
 
-	return &tokens, nil
+	return tokens, nil
 }
 
 func (c *Client) refreshToken(ctx context.Context, refreshToken string) (*Tokens, error) {
@@ -194,23 +186,37 @@ func (c *Client) refreshToken(ctx context.Context, refreshToken string) (*Tokens
 		RefreshToken: refreshToken,
 	}
 
-	var out Tokens
-	if err := c.execute(ctx, "/v1/auth/token", "", in, &out); err != nil {
-		return nil, err
-	}
-
-	return &out, nil
+	return execute[Tokens](ctx, c, in)
 }
 
-func (c *Client) execute(ctx context.Context, path, token string, in, out any) error {
-	reqBody, err := json.Marshal(in)
-	if err != nil {
-		return errors.Wrap(err, "marshal json body")
+func execute[R any](ctx context.Context, c *Client, in exchange[R]) (*R, error) {
+	var token string
+	if in.auth() {
+		var (
+			cancel context.CancelFunc
+			err    error
+		)
+
+		ctx, cancel = c.mu.Lock(ctx)
+		defer cancel()
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+
+		token, err = c.ensureToken(ctx)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+path, bytes.NewReader(reqBody))
+	reqBody, err := json.Marshal(in)
 	if err != nil {
-		return errors.Wrap(err, "create request")
+		return nil, errors.Wrap(err, "marshal json body")
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+in.path(), bytes.NewReader(reqBody))
+	if err != nil {
+		return nil, errors.Wrap(err, "create request")
 	}
 
 	httpReq.Header.Set("Content-Type", "application/json;charset=UTF-8")
@@ -220,11 +226,11 @@ func (c *Client) execute(ctx context.Context, path, token string, in, out any) e
 
 	httpResp, err := c.httpClient.Do(httpReq)
 	if err != nil {
-		return errors.Wrap(err, "execute request")
+		return nil, errors.Wrap(err, "execute request")
 	}
 
 	if httpResp.Body == nil {
-		return errors.New(httpResp.Status)
+		return nil, errors.New(httpResp.Status)
 	}
 
 	defer httpResp.Body.Close()
@@ -232,15 +238,16 @@ func (c *Client) execute(ctx context.Context, path, token string, in, out any) e
 	if httpResp.StatusCode != http.StatusOK {
 		var clientErr Error
 		if err := json.NewDecoder(httpResp.Body).Decode(&clientErr); err == nil {
-			return clientErr
+			return nil, clientErr
 		}
 
-		return errors.New(httpResp.Status)
+		return nil, errors.New(httpResp.Status)
 	}
 
-	if err := json.NewDecoder(httpResp.Body).Decode(out); err != nil {
-		return errors.Wrap(err, "decode response body")
+	out := in.out()
+	if err := json.NewDecoder(httpResp.Body).Decode(&out); err != nil {
+		return nil, errors.Wrap(err, "decode response body")
 	}
 
-	return nil
+	return &out, nil
 }

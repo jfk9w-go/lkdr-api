@@ -67,6 +67,10 @@ func (s jsonTokenStorage) UpdateTokens(ctx context.Context, phone string, tokens
 		delete(contents, phone)
 	}
 
+	if err := file.Truncate(0); err != nil {
+		return errors.Wrap(err, "truncate file")
+	}
+
 	if _, err := file.Seek(0, 0); err != nil {
 		return errors.Wrap(err, "seek to the start of file")
 	}
@@ -149,6 +153,7 @@ func main() {
 	}
 
 	client, err := lkdr.ClientBuilder{
+		Phone:     config.Phone,
 		Clock:     based.StandardClock,
 		DeviceID:  config.DeviceID,
 		UserAgent: config.UserAgent,
@@ -165,7 +170,7 @@ func main() {
 		panic(err)
 	}
 
-	receipts, err := client.Receipt(ctx, config.Phone, &lkdr.ReceiptIn{
+	receipts, err := client.Receipt(ctx, &lkdr.ReceiptIn{
 		Limit:   1,
 		Offset:  0,
 		OrderBy: "RECEIVE_DATE:DESC",
@@ -177,7 +182,7 @@ func main() {
 
 	fmt.Printf("Last receipt key: %s\n", receipts.Receipts[0].Key)
 
-	fiscalData, err := client.FiscalData(ctx, config.Phone, &lkdr.FiscalDataIn{
+	fiscalData, err := client.FiscalData(ctx, &lkdr.FiscalDataIn{
 		Key: receipts.Receipts[0].Key,
 	})
 
