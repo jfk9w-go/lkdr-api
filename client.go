@@ -244,7 +244,7 @@ func execute[R any](ctx context.Context, c *Client, in exchange[R]) (*R, error) 
 		return nil, errors.New(httpResp.Status)
 	}
 
-	out := in.out()
+	var out R
 	if err := json.NewDecoder(httpResp.Body).Decode(&out); err != nil {
 		return nil, errors.Wrap(err, "decode response body")
 	}
