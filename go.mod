@@ -9,6 +9,7 @@ require (
 	github.com/jfk9w-go/based v0.0.0-20230616110516-38f4c5c23679
 	github.com/jfk9w-go/rucaptcha-api v0.0.0-20230530172209-5c61540333f0
 	github.com/pkg/errors v0.9.1
+	go.uber.org/multierr v1.11.0
 )
 
 require (

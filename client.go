@@ -11,6 +11,7 @@ import (
 	"github.com/go-playground/validator"
 	"github.com/jfk9w-go/based"
 	"github.com/pkg/errors"
+	"go.uber.org/multierr"
 )
 
 const (
@@ -40,14 +41,14 @@ var validate = based.Lazy[*validator.Validate]{
 }
 
 type ClientBuilder struct {
-	Phone                string               `validate:"required"`
-	Clock                based.Clock          `validate:"required"`
-	DeviceID             string               `validate:"required"`
-	UserAgent            string               `validate:"required"`
-	ConfirmationProvider ConfirmationProvider `validate:"required"`
-	TokenStorage         TokenStorage         `validate:"required"`
+	Phone        string       `validate:"required"`
+	Clock        based.Clock  `validate:"required"`
+	DeviceID     string       `validate:"required"`
+	UserAgent    string       `validate:"required"`
+	TokenStorage TokenStorage `validate:"required"`
 
 	CaptchaTokenProvider CaptchaTokenProvider
+	ConfirmationProvider ConfirmationProvider
 	Transport            http.RoundTripper
 }
 
@@ -137,8 +138,18 @@ func (c *Client) ensureToken(ctx context.Context) (string, error) {
 }
 
 func (c *Client) authorize(ctx context.Context) (*Tokens, error) {
+	var err error
+
 	if c.captchaTokenProvider == nil {
-		return nil, errors.New("captcha token provider not set")
+		err = multierr.Append(err, errors.New("captcha token provider not set"))
+	}
+
+	if c.confirmationProvider == nil {
+		err = multierr.Append(err, errors.New("confirmation provider not set"))
+	}
+
+	if err != nil {
+		return nil, err
 	}
 
 	captchaToken, err := c.captchaTokenProvider.GetCaptchaToken(ctx, c.deviceInfo.MetaDetails.UserAgent, captchaSiteKey, captchaPageURL)
