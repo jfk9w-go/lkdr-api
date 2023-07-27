@@ -18,8 +18,20 @@ var dateTimeLocation = &based.Lazy[*time.Location]{
 
 type DateTime time.Time
 
+const dateTimeLayout = "2006-01-02T15:04:05"
+
 func (dt DateTime) Time() time.Time {
 	return time.Time(dt)
+}
+
+func (dt DateTime) MarshalJSON() ([]byte, error) {
+	location, err := dateTimeLocation.Get(context.Background())
+	if err != nil {
+		return nil, errors.Wrap(err, "load location")
+	}
+
+	str := time.Time(dt).In(location).Format(dateTimeLayout)
+	return json.Marshal(str)
 }
 
 func (dt *DateTime) UnmarshalJSON(data []byte) error {
@@ -33,7 +45,7 @@ func (dt *DateTime) UnmarshalJSON(data []byte) error {
 		return errors.Wrap(err, "load location")
 	}
 
-	value, err := time.ParseInLocation("2006-01-02T15:04:05", str, location)
+	value, err := time.ParseInLocation(dateTimeLayout, str, location)
 	if err != nil {
 		return err
 	}
@@ -43,6 +55,8 @@ func (dt *DateTime) UnmarshalJSON(data []byte) error {
 }
 
 type Date time.Time
+
+const dateLayout = "2006-01-02"
 
 func (d Date) Time() time.Time {
 	return time.Time(d)
@@ -54,8 +68,28 @@ func (d Date) MarshalJSON() ([]byte, error) {
 		return nil, errors.Wrap(err, "load location")
 	}
 
-	str := time.Time(d).In(location).Format("2006-01-02")
+	str := time.Time(d).In(location).Format(dateLayout)
 	return json.Marshal(str)
+}
+
+func (d *Date) UnmarshalJSON(data []byte) error {
+	var str string
+	if err := json.Unmarshal(data, &str); err != nil {
+		return err
+	}
+
+	location, err := dateTimeLocation.Get(context.Background())
+	if err != nil {
+		return errors.Wrap(err, "load location")
+	}
+
+	value, err := time.ParseInLocation(dateLayout, str, location)
+	if err != nil {
+		return err
+	}
+
+	*d = Date(value)
+	return nil
 }
 
 type DateTimeTZ time.Time
@@ -88,8 +122,20 @@ func (dt *DateTimeTZ) UnmarshalJSON(data []byte) error {
 
 type DateTimeMilliOffset time.Time
 
+const dateTimeMilliOffsetLayout = "2006-01-02T15:04:05.999999-07:00"
+
 func (dt DateTimeMilliOffset) Time() time.Time {
 	return time.Time(dt)
+}
+
+func (dt DateTimeMilliOffset) MarshalJSON() ([]byte, error) {
+	location, err := dateTimeLocation.Get(context.Background())
+	if err != nil {
+		return nil, errors.Wrap(err, "load location")
+	}
+
+	str := time.Time(dt).In(location).Format(dateTimeMilliOffsetLayout)
+	return json.Marshal(str)
 }
 
 func (dt *DateTimeMilliOffset) UnmarshalJSON(data []byte) error {
@@ -98,7 +144,7 @@ func (dt *DateTimeMilliOffset) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	value, err := time.Parse("2006-01-02T15:04:05.999999-07:00", str)
+	value, err := time.Parse(dateTimeMilliOffsetLayout, str)
 	if err != nil {
 		return err
 	}
@@ -215,7 +261,7 @@ type Brand struct {
 }
 
 type Receipt struct {
-	BrandId              int64    `json:"brandId"`
+	BrandId              *int64   `json:"brandId"`
 	Buyer                string   `json:"buyer"`
 	BuyerType            string   `json:"buyerType"`
 	CreatedDate          DateTime `json:"createdDate"`
@@ -242,15 +288,21 @@ func (in FiscalDataIn) auth() bool             { return true }
 func (in FiscalDataIn) path() string           { return "/v1/receipt/fiscal_data" }
 func (in FiscalDataIn) out() (_ FiscalDataOut) { return }
 
+type ProviderData struct {
+	ProviderPhone []string `json:"providerPhone"`
+	ProviderName  string   `json:"providerName"`
+}
+
 type FiscalDataItem struct {
-	Name        string  `json:"name"`
-	Nds         int     `json:"nds"`
-	PaymentType int     `json:"paymentType"`
-	Price       float64 `json:"price"`
-	ProductType int     `json:"productType"`
-	ProviderInn string  `json:"providerInn"`
-	Quantity    float64 `json:"quantity"`
-	Sum         float64 `json:"sum"`
+	Name         string        `json:"name"`
+	Nds          int           `json:"nds"`
+	PaymentType  int           `json:"paymentType"`
+	Price        float64       `json:"price"`
+	ProductType  int           `json:"productType"`
+	ProviderData *ProviderData `json:"providerData"`
+	ProviderInn  *string       `json:"providerInn"`
+	Quantity     float64       `json:"quantity"`
+	Sum          float64       `json:"sum"`
 }
 
 type FiscalDataOut struct {
@@ -263,21 +315,22 @@ type FiscalDataOut struct {
 	FiscalDocumentNumber    int64            `json:"fiscalDocumentNumber"`
 	FiscalDriveNumber       string           `json:"fiscalDriveNumber"`
 	FiscalSign              string           `json:"fiscalSign"`
-	InternetSign            int              `json:"internetSign"`
+	InternetSign            *int             `json:"internetSign"`
 	Items                   []FiscalDataItem `json:"items"`
 	KktRegId                string           `json:"kktRegId"`
-	MachineNumber           string           `json:"machineNumber"`
-	Nds10                   float64          `json:"nds10"`
-	Nds18                   float64          `json:"nds18"`
+	MachineNumber           *string          `json:"machineNumber"`
+	Nds10                   *float64         `json:"nds10"`
+	Nds18                   *float64         `json:"nds18"`
 	OperationType           int              `json:"operationType"`
+	Operator                *string          `json:"operator"`
 	PrepaidSum              float64          `json:"prepaidSum"`
 	ProvisionSum            float64          `json:"provisionSum"`
 	RequestNumber           int64            `json:"requestNumber"`
-	RetailPlace             string           `json:"retailPlace"`
-	RetailPlaceAddress      string           `json:"retailPlaceAddress"`
+	RetailPlace             *string          `json:"retailPlace"`
+	RetailPlaceAddress      *string          `json:"retailPlaceAddress"`
 	ShiftNumber             int64            `json:"shiftNumber"`
 	TaxationType            int              `json:"taxationType"`
 	TotalSum                float64          `json:"totalSum"`
-	User                    string           `json:"user"`
+	User                    *string          `json:"user"`
 	UserInn                 string           `json:"userInn"`
 }

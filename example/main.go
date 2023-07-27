@@ -11,9 +11,10 @@ import (
 
 	"github.com/caarlos0/env"
 	"github.com/jfk9w-go/based"
-	"github.com/jfk9w-go/lkdr-api"
 	"github.com/jfk9w-go/rucaptcha-api"
 	"github.com/pkg/errors"
+
+	"github.com/jfk9w-go/lkdr-api"
 )
 
 type jsonTokenStorage struct {
