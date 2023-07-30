@@ -30,7 +30,7 @@ func (dt DateTime) MarshalJSON() ([]byte, error) {
 		return nil, errors.Wrap(err, "load location")
 	}
 
-	str := time.Time(dt).In(location).Format(dateTimeLayout)
+	str := dt.Time().In(location).Format(dateTimeLayout)
 	return json.Marshal(str)
 }
 
@@ -68,7 +68,7 @@ func (d Date) MarshalJSON() ([]byte, error) {
 		return nil, errors.Wrap(err, "load location")
 	}
 
-	str := time.Time(d).In(location).Format(dateLayout)
+	str := d.Time().In(location).Format(dateLayout)
 	return json.Marshal(str)
 }
 
@@ -134,7 +134,7 @@ func (dt DateTimeMilliOffset) MarshalJSON() ([]byte, error) {
 		return nil, errors.Wrap(err, "load location")
 	}
 
-	str := time.Time(dt).In(location).Format(dateTimeMilliOffsetLayout)
+	str := dt.Time().In(location).Format(dateTimeMilliOffsetLayout)
 	return json.Marshal(str)
 }
 
