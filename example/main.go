@@ -96,12 +96,12 @@ func (s jsonTokenStorage) open(flag int) (*os.File, error) {
 	return file, nil
 }
 
-type rucaptchaTokenProvider struct {
-	client *rucaptcha.Client
+type authorizer struct {
+	rucaptchaClient *rucaptcha.Client
 }
 
-func (p *rucaptchaTokenProvider) GetCaptchaToken(ctx context.Context, userAgent, siteKey, pageURL string) (string, error) {
-	solved, err := p.client.Solve(ctx, &rucaptcha.YandexSmartCaptchaIn{
+func (a *authorizer) GetCaptchaToken(ctx context.Context, userAgent, siteKey, pageURL string) (string, error) {
+	solved, err := a.rucaptchaClient.Solve(ctx, &rucaptcha.YandexSmartCaptchaIn{
 		UserAgent: userAgent,
 		SiteKey:   siteKey,
 		PageURL:   pageURL,
@@ -114,9 +114,7 @@ func (p *rucaptchaTokenProvider) GetCaptchaToken(ctx context.Context, userAgent,
 	return solved.Answer, nil
 }
 
-type stdinConfirmationProvider struct{}
-
-func (p stdinConfirmationProvider) GetConfirmationCode(ctx context.Context, phone string) (string, error) {
+func (a *authorizer) GetConfirmationCode(ctx context.Context, phone string) (string, error) {
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Printf("Enter confirmation code for %s: ", phone)
 	text, err := reader.ReadString('\n')
@@ -143,6 +141,20 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	client, err := lkdr.ClientBuilder{
+		Phone:     config.Phone,
+		Clock:     based.StandardClock,
+		DeviceID:  config.DeviceID,
+		UserAgent: config.UserAgent,
+		TokenStorage: jsonTokenStorage{
+			path: config.TokensFile,
+		},
+	}.Build(ctx)
+
+	if err != nil {
+		panic(err)
+	}
+
 	rucaptchaClient, err := rucaptcha.ClientBuilder{
 		Config: rucaptcha.Config{
 			Key: config.RucaptchaKey,
@@ -153,23 +165,7 @@ func main() {
 		panic(err)
 	}
 
-	client, err := lkdr.ClientBuilder{
-		Phone:     config.Phone,
-		Clock:     based.StandardClock,
-		DeviceID:  config.DeviceID,
-		UserAgent: config.UserAgent,
-		CaptchaTokenProvider: &rucaptchaTokenProvider{
-			client: rucaptchaClient,
-		},
-		ConfirmationProvider: stdinConfirmationProvider{},
-		TokenStorage: jsonTokenStorage{
-			path: config.TokensFile,
-		},
-	}.Build(ctx)
-
-	if err != nil {
-		panic(err)
-	}
+	ctx = lkdr.WithAuthorizer(ctx, &authorizer{rucaptchaClient: rucaptchaClient})
 
 	receipts, err := client.Receipt(ctx, &lkdr.ReceiptIn{
 		Limit:   1,

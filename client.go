@@ -11,7 +11,6 @@ import (
 	"github.com/go-playground/validator"
 	"github.com/jfk9w-go/based"
 	"github.com/pkg/errors"
-	"go.uber.org/multierr"
 )
 
 const (
@@ -24,14 +23,6 @@ const (
 type TokenStorage interface {
 	LoadTokens(ctx context.Context, phone string) (*Tokens, error)
 	UpdateTokens(ctx context.Context, phone string, tokens *Tokens) error
-}
-
-type ConfirmationProvider interface {
-	GetConfirmationCode(ctx context.Context, phone string) (string, error)
-}
-
-type CaptchaTokenProvider interface {
-	GetCaptchaToken(ctx context.Context, userAgent, siteKey, pageURL string) (string, error)
 }
 
 var validate = based.Lazy[*validator.Validate]{
@@ -47,9 +38,7 @@ type ClientBuilder struct {
 	UserAgent    string       `validate:"required"`
 	TokenStorage TokenStorage `validate:"required"`
 
-	CaptchaTokenProvider CaptchaTokenProvider
-	ConfirmationProvider ConfirmationProvider
-	Transport            http.RoundTripper
+	Transport http.RoundTripper
 }
 
 func (b ClientBuilder) Build(ctx context.Context) (*Client, error) {
@@ -73,8 +62,6 @@ func (b ClientBuilder) Build(ctx context.Context) (*Client, error) {
 		httpClient: &http.Client{
 			Transport: b.Transport,
 		},
-		captchaTokenProvider: b.CaptchaTokenProvider,
-		confirmationProvider: b.ConfirmationProvider,
 		token: based.NewWriteThroughCached[string, *Tokens](
 			based.WriteThroughCacheStorageFunc[string, *Tokens]{
 				LoadFn:   b.TokenStorage.LoadTokens,
@@ -87,14 +74,12 @@ func (b ClientBuilder) Build(ctx context.Context) (*Client, error) {
 }
 
 type Client struct {
-	clock                based.Clock
-	phone                string
-	deviceInfo           deviceInfo
-	httpClient           *http.Client
-	captchaTokenProvider CaptchaTokenProvider
-	confirmationProvider ConfirmationProvider
-	token                *based.WriteThroughCached[*Tokens]
-	mu                   based.Locker
+	clock      based.Clock
+	phone      string
+	deviceInfo deviceInfo
+	httpClient *http.Client
+	token      *based.WriteThroughCached[*Tokens]
+	mu         based.Locker
 }
 
 func (c *Client) Receipt(ctx context.Context, in *ReceiptIn) (*ReceiptOut, error) {
@@ -138,21 +123,12 @@ func (c *Client) ensureToken(ctx context.Context) (string, error) {
 }
 
 func (c *Client) authorize(ctx context.Context) (*Tokens, error) {
-	var err error
-
-	if c.captchaTokenProvider == nil {
-		err = multierr.Append(err, errors.New("captcha token provider not set"))
+	authorizer := getAuthorizer(ctx)
+	if authorizer == nil {
+		return nil, errors.New("authorizer is required, but not set")
 	}
 
-	if c.confirmationProvider == nil {
-		err = multierr.Append(err, errors.New("confirmation provider not set"))
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	captchaToken, err := c.captchaTokenProvider.GetCaptchaToken(ctx, c.deviceInfo.MetaDetails.UserAgent, captchaSiteKey, captchaPageURL)
+	captchaToken, err := authorizer.GetCaptchaToken(ctx, c.deviceInfo.MetaDetails.UserAgent, captchaSiteKey, captchaPageURL)
 	if err != nil {
 		return nil, errors.Wrap(err, "get captcha token")
 	}
@@ -171,7 +147,7 @@ func (c *Client) authorize(ctx context.Context) (*Tokens, error) {
 		}
 	}
 
-	code, err := c.confirmationProvider.GetConfirmationCode(ctx, c.phone)
+	code, err := authorizer.GetConfirmationCode(ctx, c.phone)
 	if err != nil {
 		return nil, errors.Wrap(err, "get confirmation code")
 	}
