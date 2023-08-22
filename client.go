@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/AlekSi/pointer"
-	"github.com/go-playground/validator/v10"
 	"github.com/jfk9w-go/based"
 	"github.com/pkg/errors"
 )
@@ -25,12 +24,6 @@ type TokenStorage interface {
 	UpdateTokens(ctx context.Context, phone string, tokens *Tokens) error
 }
 
-var validate = based.Lazy[*validator.Validate]{
-	Fn: func(ctx context.Context) (*validator.Validate, error) {
-		return validator.New(), nil
-	},
-}
-
 type ClientBuilder struct {
 	Phone        string       `validate:"required"`
 	Clock        based.Clock  `validate:"required"`
@@ -42,9 +35,7 @@ type ClientBuilder struct {
 }
 
 func (b ClientBuilder) Build(ctx context.Context) (*Client, error) {
-	if validate, err := validate.Get(ctx); err != nil {
-		return nil, err
-	} else if err := validate.Struct(b); err != nil {
+	if err := based.Validate.Struct(b); err != nil {
 		return nil, err
 	}
 

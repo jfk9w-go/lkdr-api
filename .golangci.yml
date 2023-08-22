@@ -1,3 +1,2 @@
 run:
-  skip-files:
-    - dto.go
+  skip-dirs-use-default: true

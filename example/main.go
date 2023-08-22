@@ -159,7 +159,7 @@ func main() {
 		Config: rucaptcha.Config{
 			Key: config.RucaptchaKey,
 		},
-	}.Build(ctx)
+	}.Build()
 
 	if err != nil {
 		panic(err)
