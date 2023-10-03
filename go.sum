@@ -21,8 +21,8 @@ github.com/google/go-querystring v1.1.0 h1:AnCroh3fv4ZBgVIf1Iwtovgjaw/GiKJo8M8yD
 github.com/google/go-querystring v1.1.0/go.mod h1:Kcdr2DB4koayq7X8pmAG4sNG59So17icRSOU623lUBU=
 github.com/jfk9w-go/based v0.0.11 h1:oI83w8UezlI94Vx+L06OzibNj5jfjn5XTPtWYn+ktME=
 github.com/jfk9w-go/based v0.0.11/go.mod h1:UJahSHVJEakn2rVdDAn+t5XeRl0dhcQyQvW/1PAw1SU=
-github.com/jfk9w-go/rucaptcha-api v0.0.5 h1:enC9xdf5Vw+2qsiPp1NVHPfX46YxxZqqC9vb3ae4hF0=
-github.com/jfk9w-go/rucaptcha-api v0.0.5/go.mod h1:/MKFAs8LmBEIUxuKhI+RJEGGbxxtuXSZLAhJ8UjEyok=
+github.com/jfk9w-go/rucaptcha-api v0.0.6 h1:zYh5GtcgLOMke+H/6py/EqSulBoyut/P4T8PRT6Z8do=
+github.com/jfk9w-go/rucaptcha-api v0.0.6/go.mod h1:taI9HK+5SbZGMp+4f2ACme8+FCFuLnpCXmzC9Tj/nEo=
 github.com/leodido/go-urn v1.2.4 h1:XlAE/cm/ms7TE/VMVoduSpNBoyc2dOxHs5MZSwAN63Q=
 github.com/leodido/go-urn v1.2.4/go.mod h1:7ZrI8mTSeBSHl/UaRyKQW1qZeMgak41ANeCNaVckg+4=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
