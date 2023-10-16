@@ -7,8 +7,8 @@ toolchain go1.21.0
 require (
 	github.com/AlekSi/pointer v1.2.0
 	github.com/caarlos0/env v3.5.0+incompatible
-	github.com/jfk9w-go/based v0.0.11
-	github.com/jfk9w-go/rucaptcha-api v0.0.7
+	github.com/jfk9w-go/based v0.0.12
+	github.com/jfk9w-go/rucaptcha-api v0.0.8
 	github.com/pkg/errors v0.9.1
 )
 
