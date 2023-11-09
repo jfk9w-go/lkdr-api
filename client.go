@@ -35,7 +35,7 @@ type ClientBuilder struct {
 }
 
 func (b ClientBuilder) Build(ctx context.Context) (*Client, error) {
-	if err := based.Validate.Struct(b); err != nil {
+	if err := based.Validate(b); err != nil {
 		return nil, err
 	}
 

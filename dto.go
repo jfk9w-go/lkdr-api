@@ -10,7 +10,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-var dateTimeLocation = based.Lazy[*time.Location](
+var dateTimeLocation = based.LazyFuncRef[*time.Location](
 	func(ctx context.Context) (*time.Location, error) {
 		return time.LoadLocation("Europe/Moscow")
 	},
@@ -25,7 +25,7 @@ func (dt DateTime) Time() time.Time {
 }
 
 func (dt DateTime) MarshalJSON() ([]byte, error) {
-	location, err := dateTimeLocation(context.Background())
+	location, err := dateTimeLocation.Get(context.Background())
 	if err != nil {
 		return nil, errors.Wrap(err, "load location")
 	}
@@ -40,7 +40,7 @@ func (dt *DateTime) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	location, err := dateTimeLocation(context.Background())
+	location, err := dateTimeLocation.Get(context.Background())
 	if err != nil {
 		return errors.Wrap(err, "load location")
 	}
@@ -63,7 +63,7 @@ func (d Date) Time() time.Time {
 }
 
 func (d Date) MarshalJSON() ([]byte, error) {
-	location, err := dateTimeLocation(context.Background())
+	location, err := dateTimeLocation.Get(context.Background())
 	if err != nil {
 		return nil, errors.Wrap(err, "load location")
 	}
@@ -78,7 +78,7 @@ func (d *Date) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	location, err := dateTimeLocation(context.Background())
+	location, err := dateTimeLocation.Get(context.Background())
 	if err != nil {
 		return errors.Wrap(err, "load location")
 	}
@@ -129,7 +129,7 @@ func (dt DateTimeMilliOffset) Time() time.Time {
 }
 
 func (dt DateTimeMilliOffset) MarshalJSON() ([]byte, error) {
-	location, err := dateTimeLocation(context.Background())
+	location, err := dateTimeLocation.Get(context.Background())
 	if err != nil {
 		return nil, errors.Wrap(err, "load location")
 	}
