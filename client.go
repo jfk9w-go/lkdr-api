@@ -24,7 +24,7 @@ type TokenStorage interface {
 	UpdateTokens(ctx context.Context, phone string, tokens *Tokens) error
 }
 
-type ClientBuilder struct {
+type ClientParams struct {
 	Phone        string       `validate:"required"`
 	Clock        based.Clock  `validate:"required"`
 	DeviceID     string       `validate:"required"`
@@ -34,33 +34,33 @@ type ClientBuilder struct {
 	Transport http.RoundTripper
 }
 
-func (b ClientBuilder) Build(ctx context.Context) (*Client, error) {
-	if err := based.Validate(b); err != nil {
+func NewClient(params ClientParams) (*Client, error) {
+	if err := based.Validate(params); err != nil {
 		return nil, err
 	}
 
 	return &Client{
-		clock: b.Clock,
-		phone: b.Phone,
+		clock: params.Clock,
+		phone: params.Phone,
 		deviceInfo: deviceInfo{
 			SourceType:     "WEB",
-			SourceDeviceId: b.DeviceID,
+			SourceDeviceId: params.DeviceID,
 			MetaDetails: metaDetails{
-				UserAgent: b.UserAgent,
+				UserAgent: params.UserAgent,
 			},
 			AppVersion: "1.0.0",
 		},
 		httpClient: &http.Client{
-			Transport: b.Transport,
+			Transport: params.Transport,
 		},
 		token: based.NewWriteThroughCached[string, *Tokens](
 			based.WriteThroughCacheStorageFunc[string, *Tokens]{
-				LoadFn:   b.TokenStorage.LoadTokens,
-				UpdateFn: b.TokenStorage.UpdateTokens,
+				LoadFn:   params.TokenStorage.LoadTokens,
+				UpdateFn: params.TokenStorage.UpdateTokens,
 			},
-			b.Phone,
+			params.Phone,
 		),
-		mu: based.Semaphore(b.Clock, 20, time.Minute),
+		mu: based.Semaphore(params.Clock, 20, time.Minute),
 	}, nil
 }
 

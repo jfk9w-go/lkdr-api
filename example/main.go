@@ -141,7 +141,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	client, err := lkdr.ClientBuilder{
+	client, err := lkdr.NewClient(lkdr.ClientParams{
 		Phone:     config.Phone,
 		Clock:     based.StandardClock,
 		DeviceID:  config.DeviceID,
@@ -149,17 +149,17 @@ func main() {
 		TokenStorage: jsonTokenStorage{
 			path: config.TokensFile,
 		},
-	}.Build(ctx)
+	})
 
 	if err != nil {
 		panic(err)
 	}
 
-	rucaptchaClient, err := rucaptcha.ClientBuilder{
+	rucaptchaClient, err := rucaptcha.NewClient(rucaptcha.ClientParams{
 		Config: rucaptcha.Config{
 			Key: config.RucaptchaKey,
 		},
-	}.Build()
+	})
 
 	if err != nil {
 		panic(err)
