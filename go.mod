@@ -8,7 +8,7 @@ require (
 	github.com/AlekSi/pointer v1.2.0
 	github.com/caarlos0/env v3.5.0+incompatible
 	github.com/jfk9w-go/based v1.0.9
-	github.com/jfk9w-go/rucaptcha-api v1.0.9
+	github.com/jfk9w-go/rucaptcha-api v1.0.10
 	github.com/pkg/errors v0.9.1
 )
 
