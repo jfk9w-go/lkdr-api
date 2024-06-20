@@ -158,6 +158,7 @@ type ErrorCode string
 const (
 	SmsVerificationNotExpired ErrorCode = "registration.sms.verification.not.expired"
 	BlockedCaptcha            ErrorCode = "blocked.captcha"
+	ReceiptFiscalDataNotFound ErrorCode = "receipt.fiscaldata.not.found.dr"
 )
 
 type Error struct {
@@ -177,6 +178,15 @@ func (e Error) Error() string {
 	}
 
 	return b.String()
+}
+
+func IsDataNotFound(err error) bool {
+	var e Error
+	if errors.Is(err, &e); e.Code == ReceiptFiscalDataNotFound {
+		return true
+	}
+
+	return false
 }
 
 type metaDetails struct {

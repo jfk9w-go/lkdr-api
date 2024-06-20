@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/AlekSi/pointer"
 	"github.com/jfk9w-go/based"
 	"github.com/pkg/errors"
 )
@@ -74,11 +73,11 @@ type Client struct {
 }
 
 func (c *Client) Receipt(ctx context.Context, in *ReceiptIn) (*ReceiptOut, error) {
-	return execute[ReceiptOut](ctx, c, in)
+	return execute(ctx, c, in)
 }
 
 func (c *Client) FiscalData(ctx context.Context, in *FiscalDataIn) (*FiscalDataOut, error) {
-	return execute[FiscalDataOut](ctx, c, in)
+	return execute(ctx, c, in)
 }
 
 func (c *Client) ensureToken(ctx context.Context) (string, error) {
@@ -89,8 +88,7 @@ func (c *Client) ensureToken(ctx context.Context) (string, error) {
 
 	now := c.clock.Now()
 	updateToken := true
-	if tokens == nil || tokens.RefreshTokenExpiresIn != nil &&
-		pointer.Get[DateTimeTZ](tokens.RefreshTokenExpiresIn).Time().Before(now.Add(expireTokenOffset)) {
+	if tokens == nil || tokens.RefreshTokenExpiresIn != nil && tokens.RefreshTokenExpiresIn.Time().Before(now.Add(expireTokenOffset)) {
 		tokens, err = c.authorize(ctx)
 		if err != nil {
 			return "", errors.Wrap(err, "authorize")
@@ -130,7 +128,7 @@ func (c *Client) authorize(ctx context.Context) (*Tokens, error) {
 		CaptchaToken: captchaToken,
 	}
 
-	startOut, err := execute[startOut](ctx, c, startIn)
+	startOut, err := execute(ctx, c, startIn)
 	if err != nil {
 		var clientErr Error
 		if !errors.As(err, &clientErr) || clientErr.Code != SmsVerificationNotExpired {
@@ -150,7 +148,7 @@ func (c *Client) authorize(ctx context.Context) (*Tokens, error) {
 		Code:           code,
 	}
 
-	tokens, err := execute[Tokens](ctx, c, verifyIn)
+	tokens, err := execute(ctx, c, verifyIn)
 	if err != nil {
 		return nil, errors.Wrap(err, "verify code")
 	}
