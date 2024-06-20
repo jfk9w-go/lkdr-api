@@ -182,7 +182,7 @@ func (e Error) Error() string {
 
 func IsDataNotFound(err error) bool {
 	var e Error
-	if errors.Is(err, &e); e.Code == ReceiptFiscalDataNotFound {
+	if errors.As(err, &e); e.Code == ReceiptFiscalDataNotFound {
 		return true
 	}
 
