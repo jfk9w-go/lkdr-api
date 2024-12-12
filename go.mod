@@ -6,7 +6,7 @@ toolchain go1.21.0
 
 require (
 	github.com/caarlos0/env v3.5.0+incompatible
-	github.com/jfk9w-go/based v1.0.12
+	github.com/jfk9w-go/based v1.0.13
 	github.com/jfk9w-go/rucaptcha-api v1.0.10
 	github.com/pkg/errors v0.9.1
 )
