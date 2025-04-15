@@ -1,6 +1,7 @@
 module github.com/jfk9w-go/lkdr-api
 
 go 1.21
+toolchain go1.24.1
 
 require (
 	github.com/caarlos0/env v3.5.0+incompatible
@@ -16,7 +17,7 @@ require (
 	github.com/go-playground/validator/v10 v10.26.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
-	golang.org/x/crypto v0.33.0 // indirect
+	golang.org/x/crypto v0.35.0 // indirect
 	golang.org/x/net v0.34.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
