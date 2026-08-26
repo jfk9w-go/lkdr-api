@@ -2,6 +2,12 @@ module github.com/jfk9w-go/lkdr-api
 
 go 1.24.0
 
+retract (
+	v1.1.21 // Contains retractions only.
+	v1.1.20 // Published accidentally with the /v2 module path.
+	v1.1.19 // Published accidentally with the /v2 module path.
+)
+
 require (
 	github.com/caarlos0/env v3.5.0+incompatible
 	github.com/jfk9w-go/based v1.0.24
