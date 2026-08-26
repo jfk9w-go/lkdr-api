@@ -1,4 +1,4 @@
-module github.com/jfk9w-go/lkdr-api
+module github.com/jfk9w-go/lkdr-api/v2
 
 go 1.27
 

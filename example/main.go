@@ -14,7 +14,7 @@ import (
 	"github.com/jfk9w-go/rucaptcha-api"
 	"github.com/pkg/errors"
 
-	"github.com/jfk9w-go/lkdr-api"
+	"github.com/jfk9w-go/lkdr-api/v2"
 )
 
 type jsonTokenStorage struct {
