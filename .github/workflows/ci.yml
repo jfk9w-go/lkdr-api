@@ -1,36 +1,29 @@
 name: CI
 
-on: [ push, workflow_dispatch ]
+on: [push, pull_request, workflow_dispatch]
+
+permissions:
+  contents: read
 
 jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - name: Set up Go
-        uses: actions/setup-go@v3
-        with:
-          go-version: stable
-      - name: Lint
-        uses: golangci/golangci-lint-action@v3
-        with:
-          version: latest
-      - name: Build
-        run: make build
-      - name: Test
-        run: make test
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v3
+      - run: mise run check
+
   release:
     name: Release
-    needs: [ test ]
+    needs: [test]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref_type == 'branch' && github.ref_name == 'master'
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v3
-      - name: Set up Go
-        uses: actions/setup-go@v3
-        with:
-          go-version: stable
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v3
       - name: Coverage
         uses: ncruces/go-coverage-report@main
       - name: Tag

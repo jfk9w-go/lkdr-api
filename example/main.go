@@ -31,7 +31,7 @@ func (s jsonTokenStorage) LoadTokens(ctx context.Context, phone string) (*lkdr.T
 		return nil, err
 	}
 
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	contents := make(map[string]lkdr.Tokens)
 	if err := json.NewDecoder(file).Decode(&contents); err != nil {
 		return nil, errors.Wrap(err, "decode json")

@@ -52,7 +52,7 @@ func NewClient(params ClientParams) (*Client, error) {
 		httpClient: &http.Client{
 			Transport: params.Transport,
 		},
-		token: based.NewWriteThroughCached[string, *Tokens](
+		token: based.NewWriteThroughCached(
 			based.WriteThroughCacheStorageFunc[string, *Tokens]{
 				LoadFn:   params.TokenStorage.LoadTokens,
 				UpdateFn: params.TokenStorage.UpdateTokens,
@@ -73,11 +73,11 @@ type Client struct {
 }
 
 func (c *Client) Receipt(ctx context.Context, in *ReceiptIn) (*ReceiptOut, error) {
-	return execute(ctx, c, in)
+	return c.Do(ctx, in)
 }
 
 func (c *Client) FiscalData(ctx context.Context, in *FiscalDataIn) (*FiscalDataOut, error) {
-	return execute(ctx, c, in)
+	return c.Do(ctx, in)
 }
 
 func (c *Client) ensureToken(ctx context.Context) (string, error) {
@@ -128,7 +128,7 @@ func (c *Client) authorize(ctx context.Context) (*Tokens, error) {
 		CaptchaToken: captchaToken,
 	}
 
-	startOut, err := execute(ctx, c, startIn)
+	startOut, err := c.Do(ctx, startIn)
 	if err != nil {
 		var clientErr Error
 		if !errors.As(err, &clientErr) || clientErr.Code != SmsVerificationNotExpired {
@@ -148,7 +148,7 @@ func (c *Client) authorize(ctx context.Context) (*Tokens, error) {
 		Code:           code,
 	}
 
-	tokens, err := execute(ctx, c, verifyIn)
+	tokens, err := c.Do(ctx, verifyIn)
 	if err != nil {
 		return nil, errors.Wrap(err, "verify code")
 	}
@@ -162,12 +162,13 @@ func (c *Client) refreshToken(ctx context.Context, refreshToken string) (*Tokens
 		RefreshToken: refreshToken,
 	}
 
-	return execute[Tokens](ctx, c, in)
+	return c.Do(ctx, in)
 }
 
-func execute[R any](ctx context.Context, c *Client, in exchange[R]) (*R, error) {
+// Do sends an API request and decodes its associated response type.
+func (c *Client) Do[R any](ctx context.Context, in Exchange[R]) (*R, error) {
 	var token string
-	if in.auth() {
+	if in.Auth() {
 		var (
 			cancel context.CancelFunc
 			err    error
@@ -190,7 +191,7 @@ func execute[R any](ctx context.Context, c *Client, in exchange[R]) (*R, error) 
 		return nil, errors.Wrap(err, "marshal json body")
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+in.path(), bytes.NewReader(reqBody))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+in.Path(), bytes.NewReader(reqBody))
 	if err != nil {
 		return nil, errors.Wrap(err, "create request")
 	}
@@ -209,7 +210,7 @@ func execute[R any](ctx context.Context, c *Client, in exchange[R]) (*R, error) 
 		return nil, errors.New(httpResp.Status)
 	}
 
-	defer httpResp.Body.Close()
+	defer func() { _ = httpResp.Body.Close() }()
 
 	if httpResp.StatusCode != http.StatusOK {
 		var clientErr Error
