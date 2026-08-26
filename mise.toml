@@ -1,0 +1,20 @@
+[env]
+MISE_JOBS = "1"
+
+[tools]
+go = "1.27"
+golangci-lint = "2.13.1"
+gotestsum = "1.13.0"
+"go:golang.org/x/tools/cmd/goimports" = "v0.49.0"
+
+[tasks.test]
+run = "gotestsum --format pkgname-and-test-fails --format-hide-empty-pkg -- -cover ./..."
+
+[tasks.fmt]
+run = 'goimports -local "$(go list -m)" -w .'
+
+[tasks.lint]
+run = "golangci-lint run"
+
+[tasks.check]
+depends = ["lint", "test"]

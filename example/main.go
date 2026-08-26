@@ -14,7 +14,7 @@ import (
 	"github.com/jfk9w-go/rucaptcha-api"
 	"github.com/pkg/errors"
 
-	"github.com/jfk9w-go/lkdr-api"
+	"github.com/jfk9w-go/lkdr-api/v2"
 )
 
 type jsonTokenStorage struct {
@@ -31,7 +31,7 @@ func (s jsonTokenStorage) LoadTokens(ctx context.Context, phone string) (*lkdr.T
 		return nil, err
 	}
 
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	contents := make(map[string]lkdr.Tokens)
 	if err := json.NewDecoder(file).Decode(&contents); err != nil {
 		return nil, errors.Wrap(err, "decode json")

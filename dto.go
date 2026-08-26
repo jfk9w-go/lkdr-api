@@ -3,6 +3,7 @@ package lkdr
 import (
 	"context"
 	"encoding/json"
+	"encoding/json/jsontext"
 	"strings"
 	"time"
 
@@ -10,7 +11,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-var dateTimeLocation = based.LazyFuncRef[*time.Location](
+var dateTimeLocation = based.LazyFuncRef(
 	func(ctx context.Context) (*time.Location, error) {
 		return time.LoadLocation("Europe/Moscow")
 	},
@@ -171,7 +172,9 @@ func (e Error) Error() string {
 	if e.Code != "" {
 		b.WriteString(string(e.Code))
 		if e.Message != "" {
-			b.WriteString(" (" + e.Message + ")")
+			b.WriteString(" (")
+			b.WriteString(e.Message)
+			b.WriteString(")")
 		}
 	} else if e.Message != "" {
 		b.WriteString(e.Message)
@@ -200,10 +203,11 @@ type deviceInfo struct {
 	SourceType     string      `json:"sourceType" validate:"required"`
 }
 
-type exchange[R any] interface {
-	auth() bool
-	path() string
-	out() R
+// Exchange describes an API request and binds it to its response type.
+type Exchange[R any] interface {
+	Auth() bool
+	Path() string
+	Response() R
 }
 
 type startIn struct {
@@ -212,9 +216,9 @@ type startIn struct {
 	CaptchaToken string     `json:"captchaToken" validate:"required"`
 }
 
-func (in startIn) auth() bool        { return false }
-func (in startIn) path() string      { return "/v2/auth/challenge/sms/start" }
-func (in startIn) out() (_ startOut) { return }
+func (in startIn) Auth() bool             { return false }
+func (in startIn) Path() string           { return "/v2/auth/challenge/sms/start" }
+func (in startIn) Response() (_ startOut) { return }
 
 type startOut struct {
 	ChallengeToken             string              `json:"challengeToken"`
@@ -229,18 +233,18 @@ type verifyIn struct {
 	Code           string     `json:"code" validate:"required"`
 }
 
-func (in verifyIn) auth() bool      { return false }
-func (in verifyIn) path() string    { return "/v1/auth/challenge/sms/verify" }
-func (in verifyIn) out() (_ Tokens) { return }
+func (in verifyIn) Auth() bool           { return false }
+func (in verifyIn) Path() string         { return "/v1/auth/challenge/sms/verify" }
+func (in verifyIn) Response() (_ Tokens) { return }
 
 type tokenIn struct {
 	DeviceInfo   deviceInfo `json:"deviceInfo"`
 	RefreshToken string     `json:"refreshToken" validate:"required"`
 }
 
-func (in tokenIn) auth() bool      { return false }
-func (in tokenIn) path() string    { return "/v1/auth/token" }
-func (in tokenIn) out() (_ Tokens) { return }
+func (in tokenIn) Auth() bool           { return false }
+func (in tokenIn) Path() string         { return "/v1/auth/token" }
+func (in tokenIn) Response() (_ Tokens) { return }
 
 type Tokens struct {
 	RefreshToken          string      `json:"refreshToken"`
@@ -259,15 +263,17 @@ type ReceiptIn struct {
 	OrderBy  string  `json:"orderBy"`
 }
 
-func (in ReceiptIn) auth() bool          { return true }
-func (in ReceiptIn) path() string        { return "/v1/receipt" }
-func (in ReceiptIn) out() (_ ReceiptOut) { return }
+func (in ReceiptIn) Auth() bool               { return true }
+func (in ReceiptIn) Path() string             { return "/v1/receipt" }
+func (in ReceiptIn) Response() (_ ReceiptOut) { return }
 
 type Brand struct {
 	Description string  `json:"description"`
 	Id          int64   `json:"id"`
 	Image       *string `json:"image"`
 	Name        string  `json:"name"`
+
+	Extra map[string]jsontext.Value `json:",embed"`
 }
 
 type Receipt struct {
@@ -282,6 +288,8 @@ type Receipt struct {
 	KktOwnerInn          string   `json:"kktOwnerInn"`
 	ReceiveDate          DateTime `json:"receiveDate"`
 	TotalSum             string   `json:"totalSum"`
+
+	Extra map[string]jsontext.Value `json:",embed"`
 }
 
 type ReceiptOut struct {
@@ -294,13 +302,15 @@ type FiscalDataIn struct {
 	Key string `json:"key"`
 }
 
-func (in FiscalDataIn) auth() bool             { return true }
-func (in FiscalDataIn) path() string           { return "/v1/receipt/fiscal_data" }
-func (in FiscalDataIn) out() (_ FiscalDataOut) { return }
+func (in FiscalDataIn) Auth() bool                  { return true }
+func (in FiscalDataIn) Path() string                { return "/v1/receipt/fiscal_data" }
+func (in FiscalDataIn) Response() (_ FiscalDataOut) { return }
 
 type ProviderData struct {
 	ProviderPhone []string `json:"providerPhone"`
 	ProviderName  string   `json:"providerName"`
+
+	Extra map[string]jsontext.Value `json:",embed"`
 }
 
 type FiscalDataItem struct {
@@ -313,6 +323,8 @@ type FiscalDataItem struct {
 	ProviderInn  *string       `json:"providerInn"`
 	Quantity     float64       `json:"quantity"`
 	Sum          float64       `json:"sum"`
+
+	Extra map[string]jsontext.Value `json:",embed"`
 }
 
 type FiscalDataOut struct {
@@ -343,4 +355,6 @@ type FiscalDataOut struct {
 	TotalSum                float64          `json:"totalSum"`
 	User                    *string          `json:"user"`
 	UserInn                 string           `json:"userInn"`
+
+	Extra map[string]jsontext.Value `json:",embed"`
 }

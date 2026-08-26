@@ -1,9 +1,7 @@
 ## lkdr-api
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/jfk9w-go/lkdr-api.svg)](https://pkg.go.dev/github.com/jfk9w-go/lkdr-api)
-[![Go Report](https://goreportcard.com/badge/github.com/jfk9w-go/lkdr-api)](https://goreportcard.com/report/github.com/jfk9w-go/lkdr-api)
-[![Go Coverage](https://github.com/jfk9w-go/lkdr-api/wiki/coverage.svg)](https://raw.githack.com/wiki/jfk9w-go/lkdr-api/coverage.html)
-[![CodeQL](https://github.com/jfk9w-go/lkdr-api/workflows/CodeQL/badge.svg)](https://github.com/jfk9w-go/lkdr-api/actions?query=workflow%3ACodeQL)
+[![Go Reference](https://pkg.go.dev/badge/github.com/jfk9w-go/lkdr-api/v2.svg)](https://pkg.go.dev/github.com/jfk9w-go/lkdr-api/v2)
+[![CI](https://github.com/jfk9w-go/lkdr-api/actions/workflows/ci.yml/badge.svg)](https://github.com/jfk9w-go/lkdr-api/actions/workflows/ci.yml)
 
 Клиент для сервиса ФНС [Мои Чеки Онлайн](https://lkdr.nalog.ru/login).
 

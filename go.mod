@@ -1,6 +1,6 @@
-module github.com/jfk9w-go/lkdr-api
+module github.com/jfk9w-go/lkdr-api/v2
 
-go 1.24.0
+go 1.27
 
 require (
 	github.com/caarlos0/env v3.5.0+incompatible
